@@ -3,13 +3,15 @@ from datetime import datetime, timedelta
 from dateparser import parse
 from fastapi import FastAPI, Form
 from config import cliente, twilio_whatsapp, mama_telefono, horario
-from src.funciones.citas_medicas import cargar_citas, guardar_cita, guardar_citas, mostrar_citas, mostrar_citas_numeradas, verificar_citas, flujo  
-from src.funciones.papa import guardar_estado, recordar_pasta, resumen_semanal, verificar_pasta 
+from src.funciones.citas_medicas import cargar_citas, guardar_cita, guardar_citas, mostrar_citas, mostrar_citas_numeradas, verificar_citas, flujo_citas_medicas  
+from src.funciones.papa import guardar_estado, recordar_pasta, resumen_semanal, verificar_pasta, flujo_papa
 
 app = FastAPI()
 
-horario.add_job(recordar_pasta,    'cron', hour=8,  minute=0)
-horario.add_job(verificar_pasta,'cron', hour=17, minute=0)
+horario.add_job(recordar_pasta,    'cron', hour=6,  minute=30, args=["mañana"])
+horario.add_job(recordar_pasta,    'cron', hour=20,  minute=0, args=["noche"])
+horario.add_job(verificar_pasta, 'cron', hour=8,  minute=0,  args=["mañana"])
+horario.add_job(verificar_pasta, 'cron', hour=22, minute=0,  args=["noche"])
 horario.add_job(resumen_semanal,   'cron', day_of_week='sun', hour=10, minute=0)
 horario.add_job(verificar_citas,   'cron', hour=6,  minute=0)
 
@@ -33,7 +35,7 @@ def enviar(body, to):
 @app.post("/bot")
 def bot(From: str = Form(), Body: str = Form()):
     print(f"Mensaje de {From}: {Body}")
-    estado = flujo["estado"]
+    estado = flujo_citas_medicas["estado"]
 
     # Citas Médicas
     if estado == "mostrar_citas_eliminar":
@@ -49,7 +51,7 @@ def bot(From: str = Form(), Body: str = Form()):
             else:
                 cita_eliminada = citas.pop(indice)
                 guardar_citas(citas)
-                flujo["estado"] = None
+                flujo_citas_medicas["estado"] = None
                 enviar(f"✅ Cita de *{cita_eliminada['nombre']}* eliminada.", mama_telefono)
 
     elif estado == "mostrar_citas_cambiar":
@@ -63,8 +65,8 @@ def bot(From: str = Form(), Body: str = Form()):
                 enviar("Ese número no corresponde a ninguna cita.", mama_telefono)
                 enviar(mostrar_citas_numeradas(),mama_telefono)
             else:
-                flujo["cita_seleccionada"] = indice
-                flujo["estado"] = "esperar_campo_cambiar"
+                flujo_citas_medicas["cita_seleccionada"] = indice
+                flujo_citas_medicas["estado"] = "esperar_campo_cambiar"
                 enviar("¿Qué desea cambiar?\n\n1️⃣ Nombre\n2️⃣ Fecha\n3️⃣ Hora\n4️⃣ Lugar", mama_telefono)
 
     elif estado == "esperar_campo_cambiar":
@@ -75,14 +77,14 @@ def bot(From: str = Form(), Body: str = Form()):
             
         else:
             campo_elegido = campos_map[int(Body.strip())]
-            flujo["campo_a_cambiar"] = campo_elegido
-            flujo["estado"] = "esperar_nuevo_valor"
+            flujo_citas_medicas["campo_a_cambiar"] = campo_elegido
+            flujo_citas_medicas["estado"] = "esperar_nuevo_valor"
             enviar(f"¿Cuál es el nuevo valor de {campo_elegido}?", mama_telefono)
 
     elif estado == "esperar_nuevo_valor":
         citas  = cargar_citas()
-        indice = flujo["cita_seleccionada"]
-        campo  = flujo["campo_a_cambiar"]
+        indice = flujo_citas_medicas["cita_seleccionada"]
+        campo  = flujo_citas_medicas["campo_a_cambiar"]
         if campo == "fecha":
             valor = parse(Body.strip(), languages=["es"]).strftime("%Y-%m-%d")
         elif campo == "hora":
@@ -91,15 +93,15 @@ def bot(From: str = Form(), Body: str = Form()):
             valor = Body.strip()
         citas[indice][campo] = valor
         guardar_citas(citas)
-        flujo["estado"] = "esperar_otro_cambio"
+        flujo_citas_medicas["estado"] = "esperar_otro_cambio"
         enviar("✅ Guardado. ¿Desea cambiar otro campo? (si / no)", mama_telefono)
 
     elif estado == "esperar_otro_cambio":
         if Body.strip().lower() in ["si", "sí"]:
-            flujo["estado"] = "esperar_campo_cambiar"
+            flujo_citas_medicas["estado"] = "esperar_campo_cambiar"
             enviar("¿Qué desea cambiar?\n\n1️⃣ Nombre\n2️⃣ Fecha\n3️⃣ Hora\n4️⃣ Lugar", mama_telefono)
         else:
-            flujo["estado"] = None
+            flujo_citas_medicas["estado"] = None
             enviar("✅ Cita actualizada.", mama_telefono)
 
     
@@ -113,7 +115,7 @@ def bot(From: str = Form(), Body: str = Form()):
         if not mensaje:
             enviar("No tiene citas agendadas.", mama_telefono)
         else:
-            flujo["estado"] = "mostrar_citas_eliminar"
+            flujo_citas_medicas["estado"] = "mostrar_citas_eliminar"
             enviar(mensaje, mama_telefono)
 
     elif re.search(r"cambiar|modificar", Body.lower()):
@@ -121,7 +123,7 @@ def bot(From: str = Form(), Body: str = Form()):
         if not mensaje:
             enviar("No tienes citas agendadas.", mama_telefono)
         else:
-            flujo["estado"] = "mostrar_citas_cambiar"
+            flujo_citas_medicas["estado"] = "mostrar_citas_cambiar"
             enviar(mensaje, mama_telefono)
 
     elif re.search(r"ver citas|mis citas|citas", Body.lower()):
@@ -137,8 +139,8 @@ def bot(From: str = Form(), Body: str = Form()):
     
     # Papá
     elif Body.strip() == "1":
-        guardar_estado()
-        enviar("¡Listo! Nos vemos mañana 💪", From)
+        guardar_estado(flujo_papa["pasta_pendiente"])
+        enviar("¡Listo!", From)
 
     elif Body.strip() == "2":
         enviar("No se le vaya a olvidar darle la pasta más rato", From)

@@ -5,7 +5,7 @@ from dateparser import parse
 from config import cliente, twilio_whatsapp, mama_telefono, horario
 
 # Estado de la conversación de la abuela
-flujo = {
+flujo_citas_medicas = {
     "estado": None,          
     "cita_seleccionada": None,
     "campo_a_cambiar": None 
