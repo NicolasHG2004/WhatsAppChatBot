@@ -37,8 +37,11 @@ def bot(From: str = Form(), Body: str = Form()):
     print(f"Mensaje de {From}: {Body}")
     estado = flujo_citas_medicas["estado"]
 
+    if re.search(r"cancelar|salir", Body.lower()):
+        flujo_citas_medicas["estado"] = None
+        enviar("✅ Operación cancelada.", mama_telefono)
     # Citas Médicas
-    if estado == "mostrar_citas_eliminar":
+    elif estado == "mostrar_citas_eliminar":
         citas = cargar_citas()
         if not Body.strip().isdigit():
             enviar("Por favor ingrese un número válido.", mama_telefono)
@@ -133,6 +136,8 @@ def bot(From: str = Form(), Body: str = Form()):
         guardar_cita(Body)
         verificar_citas()
         enviar("✅ Cita guardada. Le recordaré el día anterior y 1 hora antes 🗓️", mama_telefono)
+
+
     
     
     

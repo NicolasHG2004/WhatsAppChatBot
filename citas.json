@@ -1,14 +1,9 @@
 [
   {
-    "nombre": "oftalmologia",
-    "fecha": "2026-03-15",
-    "hora": "19:00",
-    "lugar": "mi ksa"
-  },
-  {
-    "nombre": "cardiologia",
-    "fecha": "2026-03-15",
-    "hora": "20:00",
-    "lugar": "idime"
+    "nombre": "Optometria",
+    "para": "Nicol�s",
+    "fecha": "2026-03-16",
+    "hora": "19:43",
+    "lugar": "Idime Nueva EPS"
   }
 ]
