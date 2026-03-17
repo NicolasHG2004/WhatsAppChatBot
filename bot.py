@@ -8,12 +8,12 @@ from src.funciones.papa import guardar_estado, recordar_pasta, resumen_semanal, 
 
 app = FastAPI()
 
-horario.add_job(recordar_pasta,    'cron', hour=6,  minute=30, args=["mañana"])
-horario.add_job(recordar_pasta,    'cron', hour=20,  minute=0, args=["noche"])
-horario.add_job(verificar_pasta, 'cron', hour=8,  minute=0,  args=["mañana"])
-horario.add_job(verificar_pasta, 'cron', hour=22, minute=0,  args=["noche"])
-horario.add_job(resumen_semanal,   'cron', day_of_week='sun', hour=10, minute=0)
-horario.add_job(verificar_citas,   'cron', hour=6,  minute=0)
+horario.add_job(recordar_pasta, 'cron', hour=1,  minute=0,  args=["noche"])   # 8pm Colombia
+horario.add_job(recordar_pasta, 'cron', hour=11, minute=30, args=["mañana"])  # 6:30am Colombia
+horario.add_job(verificar_pasta,'cron', hour=13, minute=0,  args=["mañana"])  # 8am Colombia
+horario.add_job(verificar_pasta,'cron', hour=3,  minute=0,  args=["noche"])   # 10pm Colombia
+horario.add_job(resumen_semanal,'cron', day_of_week='sun', hour=15, minute=0) # 10am Colombia
+horario.add_job(verificar_citas,'cron', hour=11, minute=0) 
 
 MENSAJE_BIENVENIDA = (
     "Hola, madre. Aquí puede gestionar las citas médicas. Puede:\n\n"
