@@ -32,7 +32,7 @@ def enviar(body, to):
     cliente.messages.create(body=body, from_=twilio_whatsapp, to=to)
 
 
-@app.get("/")
+@app.api_route("/", methods=["GET", "HEAD"])
 def health():
     return {"status": "ok"}
 
