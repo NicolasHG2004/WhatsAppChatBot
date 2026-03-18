@@ -32,6 +32,10 @@ def enviar(body, to):
     cliente.messages.create(body=body, from_=twilio_whatsapp, to=to)
 
 
+@app.get("/")
+def health():
+    return {"status": "ok"}
+
 @app.post("/bot")
 def bot(From: str = Form(), Body: str = Form()):
     print(f"Mensaje de {From}: {Body}")
