@@ -1,49 +1,64 @@
 # Citas Médicas
-import json
+
 from datetime import date, datetime, timedelta
 from dateparser import parse
 from config import cliente, twilio_whatsapp, mama_telefono, horario
+from db import get_conn
 
-# Estado de la conversación de la abuela
 flujo_citas_medicas = {
-    "estado": None,          
+    "estado": None,
     "cita_seleccionada": None,
-    "campo_a_cambiar": None 
+    "campo_a_cambiar": None
 }
 
-
 def cargar_citas():
-    try:
-        with open("citas.json", "r") as f:
-            return json.load(f)
-    except FileNotFoundError:
-        return []
-
-def guardar_citas(citas):
-    with open("citas.json", "w") as f:
-        json.dump(citas, f, ensure_ascii=False, indent=2)
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT id, nombre, para, fecha, hora, lugar FROM citas ORDER BY fecha, hora")
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    return [{"id": r[0], "nombre": r[1], "para": r[2], "fecha": r[3], "hora": r[4], "lugar": r[5]} for r in rows]
 
 def guardar_cita(Body):
     campos = {}
     for linea in Body.strip().split("\n"):
         if ": " in linea:
             clave, valor = linea.split(": ", 1)
-            campos[clave.strip().lower()] = valor.strip()
+            campos[clave.strip().lower().replace("*", "")] = valor.strip().replace("*", "")
 
     fecha_dt = parse(campos.get("fecha", ""), languages=["es"])
     hora_dt  = parse(campos.get("hora",  ""), languages=["es"])
 
-    cita = {
-        "nombre": campos.get("cita", ""),
-        "para": campos.get("para",""),
-        "fecha":  fecha_dt.strftime("%Y-%m-%d") if fecha_dt else "",
-        "hora":   hora_dt.strftime("%H:%M")     if hora_dt  else "",
-        "lugar":  campos.get("lugar", "")
-    }
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO citas (nombre, para, fecha, hora, lugar)
+        VALUES (%s, %s, %s, %s, %s)
+    """, (
+        campos.get("cita", ""),
+        campos.get("para", ""),
+        fecha_dt.strftime("%Y-%m-%d") if fecha_dt else "",
+        hora_dt.strftime("%H:%M")     if hora_dt  else "",
+        campos.get("lugar", "")
+    ))
+    conn.commit()
+    cur.close()
+    conn.close()
 
-    citas = cargar_citas()
-    citas.append(cita)
-    guardar_citas(citas)
+def guardar_citas(citas):
+    """Reemplaza todas las citas — usado al eliminar o modificar."""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM citas")
+    for cita in citas:
+        cur.execute("""
+            INSERT INTO citas (nombre, para, fecha, hora, lugar)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (cita["nombre"], cita["para"], cita["fecha"], cita["hora"], cita["lugar"]))
+    conn.commit()
+    cur.close()
+    conn.close()
 
 def mostrar_citas():
     citas = cargar_citas()
@@ -58,7 +73,7 @@ def mostrar_citas():
     for cita in citas:
         fecha_normal = datetime.strptime(cita['fecha'], "%Y-%m-%d").strftime("%d/%m/%Y")
         hora_normal  = datetime.strptime(cita['hora'],  "%H:%M").strftime("%I:%M %p")
-        mensaje += f"• {cita['nombre']} — {fecha_normal} {hora_normal} — {cita['lugar']}\n"
+        mensaje += f"• {cita['nombre']} ({cita['para']}) — {fecha_normal} {hora_normal} — {cita['lugar']}\n"
     cliente.messages.create(body=mensaje, from_=twilio_whatsapp, to=mama_telefono)
 
 def mostrar_citas_numeradas():
@@ -69,14 +84,14 @@ def mostrar_citas_numeradas():
     for i, cita in enumerate(citas):
         fecha_normal = datetime.strptime(cita['fecha'], "%Y-%m-%d").strftime("%d/%m/%Y")
         hora_normal  = datetime.strptime(cita['hora'],  "%H:%M").strftime("%I:%M %p")
-        mensaje += f"{i+1}️⃣ {cita['nombre']} — {fecha_normal} {hora_normal} — {cita['lugar']}\n"
+        mensaje += f"{i+1}️⃣ {cita['nombre']} ({cita['para']}) — {fecha_normal} {hora_normal} — {cita['lugar']}\n"
     return mensaje
 
 def mandar_recordatorio_cita(cita, prefijo, persona):
     hora_normal = datetime.strptime(cita['hora'], "%H:%M").strftime("%I:%M %p")
     cliente.messages.create(
         body=(
-            f"🗓️ Hola madre, {prefijo}, {persona} tiene una cita de *{cita['nombre']}* "
+            f"🗓️ Hola madre, {prefijo}, *{persona}* tiene una cita de *{cita['nombre']}* "
             f"en {cita['lugar']} a las {hora_normal}"
         ),
         from_=twilio_whatsapp,
@@ -94,7 +109,7 @@ def verificar_citas():
             continue
         fecha = datetime.strptime(cita["fecha"], "%Y-%m-%d").date()
         if fecha < hoy:
-            continue 
+            continue
         citas_vigentes.append(cita)
         if fecha == manana:
             mandar_recordatorio_cita(cita, "mañana", cita["para"])
@@ -109,4 +124,3 @@ def verificar_citas():
                 )
 
     guardar_citas(citas_vigentes)
-
