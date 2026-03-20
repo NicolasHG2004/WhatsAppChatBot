@@ -5,6 +5,7 @@ from fastapi import FastAPI, Form
 from config import cliente, twilio_whatsapp, mama_telefono, horario
 from src.funciones.citas_medicas import cargar_citas, guardar_cita, guardar_citas, mostrar_citas, mostrar_citas_numeradas, verificar_citas, flujo_citas_medicas  
 from src.funciones.papa import guardar_estado, recordar_pasta, resumen_semanal, verificar_pasta, flujo_papa
+import db
 
 app = FastAPI()
 
